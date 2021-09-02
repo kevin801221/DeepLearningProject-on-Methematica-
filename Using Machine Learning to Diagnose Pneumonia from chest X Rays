@@ -1,1 +1,130 @@
+Introduction
+肺炎是一種肺部的改染，感染一顆或一次感染兩顆都有可能; 他可能誘發於許多種的組織機制如: 細菌, 病毒, 真菌。
+細菌性肺炎，是目前為止最常見的肺炎之一; 他發生於有許多種的細菌存在於肺部當中; 病毒性肺炎是由一系列病毒引起的，最常見的病毒是流感。
+美國傳染病中心（Communicable Disease Center; CDC）報告指出，在每年近 540,000 例肺炎病例中，就有 50,000 人死亡。 早期和正確的診斷可以大大地降低致死率。
+傳統的診斷方法，如檢查患者的病史和症狀，都有其不足之處。
+荷蘭研究人員在《歐洲呼吸雜誌》上發表了他們的研究結果，他們發現在 140 名通過 X 射線診斷出肺炎的患者中，醫生最初認為其中只有 41 名患有嚴重的肺部感染，但最終判斷是有80人。 
+長期以來，胸部 X 光檢查一直是肺炎的診斷工具。 
+由於肺炎是一種氣腔相關的疾病，患者的氣腔內充滿了細菌、病毒、膿液和其他微生物。
+診斷是通過胸部 X 射線圖中存在的滲透或白點來確定的。
+此項目使用卷積神經網絡(CNN)來診斷患者患有的肺炎類型。 使用了  在 Kaggle 上提供數據集Chest X-Ray Images (Pneumonia).
 
+下面是胸部 X 光片中滲透的例子
+Import["http://www.stepwards.com/wp-content/uploads/2016/02/xray-\chest-pneumonia.jpg"]
+
+再來下面是三個分類的胸部 X 射線通常外觀的範例。肺炎患者的胸部X光檢查的特點是失去隔膜陰影，以及肺實變(pulmonary consolidation) 的證據（肺部充滿液體而不是空氣的區域）。
+Import["https://i.imgur.com/jZqpV51.png"]
+我使用轉移學習來創建我的神經網路。
+遷移學習是使用預先訓練的模型作為第二個任務的模型的起點的過程。
+轉移學習和場域適應是指利用在一個環境中學到的東西Ex:參數，在另一個環境中改進泛化的情況 。
+此項目使用了 ResNet 50，這個由微軟亞洲於 2015 年發布的網路架構; 該網路最初接受大約120萬張圖像和1000個類別的訓練。通過微軟強大的計算能力、時間資源和知識，最後致力於完成這個架構，使它成為一個非常偉大的神經網路，來用於遷移學習。
+下面是運行中的 ResNet 50 的範例。它準確預測圖像是一隻黃金獵犬。此外，我們將程序設置為輸出它認為圖像的前 10 個機率。
+NonclippedNet = NetTake[baseNet, 25]
+clippedNet = NetTake[baseNet, 23]
+resizedNet = NetReplacePart[clippedNet, "Input" -> NetEncoder[{"Image", {512, 512}}]]
+learnNet = NetChain[{
+   DropoutLayer[0.3],
+   LinearLayer[3],
+   SoftmaxLayer[]
+   },
+  "Output" -> NetDecoder[{"Class", {0, 1, 2}}]
+  ]
+  
+  normalImg = 
+  Import /@ 
+   FileNames["*.jpeg", NotebookDirectory[] <> "train\\NORMAL"];
+virusImg = 
+  Import /@ 
+   FileNames["*_virus_*.jpeg", 
+    NotebookDirectory[] <> "train\\PNEUMONIA"];
+bacImg = Import /@ 
+   FileNames["*_bacteria_*.jpeg", 
+    NotebookDirectory[] <> "train\\PNEUMONIA"];
+    
+normNorm = ConformImages[Import /@ normalFiles, {512, 512}];
+virusNorm = ConformImages[Import /@ virusFiles, {512, 512}];
+bacNorm = ConformImages[Import /@ bacFiles, {512, 512}];
+normalFeats = resizedNet[normNorm, TargetDevice -> "GPU"];
+virusFeats = resizedNet[virusNorm, TargetDevice -> "GPU"];
+bacFeats = resizedNet[bacNorm, TargetDevice -> "GPU"];
+eats = RandomSample[
+  Join[Map[# -> 0 &, resizedNet[normNorm, TargetDevice -> "GPU"]], 
+   Map[# -> 1 &, resizedNet[virusNorm, TargetDevice -> "GPU"]], 
+   Map[# -> 2 &, resizedNet[bacNorm, TargetDevice -> "GPU"]]]
+   
+   下面的程式腳本用於使用訓練數據集 trainFeat 和測試數據集訓練學習網絡。
+   I trained the neural network 4 separate times:
+	1. Regular data set 35 rounds of training
+	2. Regular data set 70 rounds of training
+	3.Augmented data set 35 rounds of training
+	4.Augmented data set 70 rounds of training 
+  
+  The accuracy results of the neural network are below 
+	1.Regular 35 rounds: about 24.9% error
+	2.Regular 70 rounds: about 19.9% error
+	3. Augmented 35 rounds: about 20.9% error
+	4.Augmented 70 rounds: about 17.4% error
+  
+  對於該項目的肺炎位置檢測部分，創建了一個數據子集。左右肺通常被稱為肺葉。
+分別選擇左肺葉正常和右肺葉正常的 100 張圖像以及左葉病毒、右葉病毒、左葉細菌、右葉細菌性肺炎的 100 張圖像來訓練 4 個獨立的神經網絡，以幫助確定肺炎的位置。
+以下是導入未經編輯的胸部 X 光片的Syntax。
+
+halfNormalImg = 
+  Import /@ 
+   FileNames[Except["."] ~~ "*.jpeg", 
+    NotebookDirectory[] <> "HalfData/NORMAL"];
+leftVirusImg = 
+  Import /@ 
+   FileNames[Except["."] ~~ "*.jpeg", 
+    NotebookDirectory[] <> "HalfData/VIRUS/Left_Real"];
+rightVirusImg = 
+  Import /@ 
+   FileNames[Except["."] ~~ "*.jpeg", 
+    NotebookDirectory[] <> "HalfData/VIRUS/Right_Real"];
+leftBacImg = 
+  Import /@ 
+   FileNames[Except["."] ~~ "*.jpeg", 
+    NotebookDirectory[] <> "HalfData/BACTERIA/Left_Real"];
+rightBacImg = 
+  Import /@ 
+   FileNames[Except["."] ~~ "*.jpeg", 
+    NotebookDirectory[] <> "HalfData/BACTERIA/Right_Real"];
+ClearAll[cropFinder];
+cropFinder[x_, img_] := Module[{mid, flatValues, cropLeft, cropRight},
+  mid = Ceiling[Last[ImageDimensions[img]]/(x)];
+  flatValues = 
+   Flatten@ImageData[
+     ImageTake[ColorConvert[img, "Grayscale"], {mid, mid}]];
+  cropLeft = LengthWhile[flatValues, # < 0.2 &];
+  cropRight = LengthWhile[Reverse[flatValues], # < 0.2 &];
+  List[cropLeft, cropRight]
+  ]
+ClearAll[widthResize];
+widthResize[img_] := 
+ Block[{ flatValues, cropLeft, cropRight, meanLeft, meanRight, list1, 
+   list2, list3, list4, list5, resizedImage},
+  list1 = cropFinder[10, img];
+  list2 = cropFinder[2, img];
+  list3 = cropFinder[4, img];
+  list4 = cropFinder[1.5, img];
+  list5 = cropFinder[1, img];
+  meanLeft = meanLeft /. x_ /; x > 300 :> 0;
+  meanLeft = -(Max[{list1[[1]], list2[[1]], list3[[1]], list4[[1]], 
+       list5[[1]]}]);
+  meanRight = meanRight /. x_ /; x > 300 :> 0;
+  meanRight = -((Max[{list1[[2]], list2[[2]], list3[[2]], list4[[2]], 
+        list5[[2]]}]));
+  resizedImage = ImagePad[img, {{meanLeft, meanRight}, {0, 0}}]; ImageResize[resizedImage, {512, 512}]
+ ]
+   
+ CloudDeploy[Delayed@FormPage[{"image" -> "Image"},
+   tesla[#image] &,
+   AppearanceRules -> <|
+     "Title" -> "Machine Learning Pneumonia Diagnosis", 
+     "Description" -> 
+      "<style>.wolfram-branding>.wolfram-branding-cloud:after{\
+background-image: url(http://i.imgur.com/hFuh1YT.png)}</style>Upload \
+a Chest X-Ray to recieve a diagnosis", "SubmitLabel" -> "Classify", 
+     "PageTheme" -> "Red"|>], "test3", Permissions -> "Public"] 
+ 
+   
